@@ -14,15 +14,23 @@ int do_user_call(uint64 sysnum, uint64 a1, uint64 a2, uint64 a3, uint64 a4, uint
                  uint64 a7) {
   int ret;
 
-  // before invoking the syscall, arguments of do_user_call are already loaded into the argument
-  // registers (a0-a7) of our (emulated) risc-v machine.
+  // explicitly load arguments into registers to ensure correct passing
+  register uint64 a0_reg asm("a0") = sysnum;
+  register uint64 a1_reg asm("a1") = a1;
+  register uint64 a2_reg asm("a2") = a2;
+  register uint64 a3_reg asm("a3") = a3;
+  register uint64 a4_reg asm("a4") = a4;
+  register uint64 a5_reg asm("a5") = a5;
+  register uint64 a6_reg asm("a6") = a6;
+  register uint64 a7_reg asm("a7") = a7;
+
   asm volatile(
       "ecall\n"
-      "sw a0, %0"  // returns a 32-bit value
-      : "=m"(ret)
-      :
+      : "+r"(a0_reg)
+      : "r"(a1_reg), "r"(a2_reg), "r"(a3_reg), "r"(a4_reg), "r"(a5_reg), "r"(a6_reg), "r"(a7_reg)
       : "memory");
 
+  ret = a0_reg;
   return ret;
 }
 

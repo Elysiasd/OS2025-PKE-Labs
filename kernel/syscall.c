@@ -68,16 +68,13 @@ ssize_t sys_user_print_backtrace(uint64 depth) {
   // get section header string table
   elf_fpread(&elfloader, &shstrtab_shdr, sizeof(shstrtab_shdr), shoff + shstrndx * sizeof(shdr));
   
-  // allocate buffer for section header string table
-  char *shstrtab = (char *)pmm_alloc();
-  elf_fpread(&elfloader, shstrtab, shstrtab_shdr.size, shstrtab_shdr.offset);
-
   int symtab_found = 0;
   int strtab_found = 0;
 
   for (int k = 0; k < shnum; k++) {
     elf_fpread(&elfloader, &shdr, sizeof(shdr), shoff + k * sizeof(shdr));
-    char *name = shstrtab + shdr.name;
+    char name[32];
+    elf_fpread(&elfloader, name, 32, shstrtab_shdr.offset + shdr.name);
     if (strcmp(name, ".symtab") == 0) {
       symtab_shdr = shdr;
       symtab_found = 1;
@@ -86,20 +83,11 @@ ssize_t sys_user_print_backtrace(uint64 depth) {
       strtab_found = 1;
     }
   }
-  
-  pmm_free(shstrtab);
 
   if (!symtab_found || !strtab_found) {
     panic("symtab or strtab not found\n");
   }
 
-  // allocate buffer for symtab and strtab
-  // assuming they fit in one page for now, or we need to read them entry by entry
-  // symtab can be large, so let's read entry by entry
-  
-  // strtab can also be large, but we only need to read the name when we find the symbol
-  // so we can just read the name from file when needed
-  
   sprint("back trace the user app in the following:\n");
 
   while (i < depth && ra != 0) {
