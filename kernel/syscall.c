@@ -100,32 +100,38 @@ ssize_t sys_user_print_backtrace(uint64 depth) {
     
     elf_sym sym;
     int found = 0;
+    char name[256];
+
     for (int k = 0; k < num_syms; k++) {
       elf_fpread(&elfloader, &sym, sizeof(sym), symtab_offset + k * sym_entsize);
       // check if ra is within the function
       if (sym.value <= ra && ra < sym.value + sym.size) {
         // found the symbol
         // get the name
-        char name[256];
         // read the name from strtab
-        // we need to read character by character until null terminator?
-        // or just read a chunk
-        // let's read a chunk
         elf_fpread(&elfloader, name, 256, strtab_shdr.offset + sym.name);
-        sprint("%s\n", name);
-        if (strcmp(name, "main") == 0) {
-             goto cleanup;
-        }
         found = 1;
         break;
       }
     }
     
     if (!found) {
-      sprint("???\n");
+      // sprint("???\n");
+      break; // Stop if symbol not found
     }
 
+    if (strcmp(name, "do_user_call") == 0 || strcmp(name, "print_backtrace") == 0) {
+        goto update_regs;
+    }
+
+    sprint("%s\n", name);
     i++;
+
+    if (strcmp(name, "main") == 0) {
+         goto cleanup;
+    }
+
+update_regs:
     // update ra and s0
     // ra is at s0 - 8
     // s0 is at s0 - 16
@@ -137,8 +143,14 @@ ssize_t sys_user_print_backtrace(uint64 depth) {
     // check if stack_ptr is valid?
     // for now assume it is valid
     
-    ra = *(stack_ptr - 1);
-    s0 = *(stack_ptr - 2);
+    uint64 new_ra = *(stack_ptr - 1);
+    uint64 new_s0 = *(stack_ptr - 2);
+
+    // Stack grows down, so caller's frame pointer (new_s0) should be larger than current (s0)
+    if (new_s0 <= s0) break;
+
+    ra = new_ra;
+    s0 = new_s0;
   }
 
 cleanup:
