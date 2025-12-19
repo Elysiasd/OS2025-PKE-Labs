@@ -35,126 +35,37 @@ ssize_t sys_user_exit(uint64 code) {
 //
 // implement the SYS_user_print_backtrace syscall
 //
-ssize_t sys_user_print_backtrace(uint64 depth) {
-  // TODO (lab1_challenge1): implement the printing of call stack of the user application.
-  uint64 s0 = current->trapframe->regs.s0;
-  uint64 ra = current->trapframe->regs.ra;
-  uint64 i = 0;
-
-  // open the elf file
-  elf_ctx elfloader;
-  elf_info info;
+ssize_t sys_user_print_backtrace(int depth) {
+  // Get user stack pointer from trapframe
+  uint64 user_sp = current->trapframe->regs.sp;
+  uint64 user_fp = current->trapframe->regs.s0;
   
-  arg_buf arg_bug_msg;
-  size_t argc = parse_args(&arg_bug_msg);
-  if (!argc) panic("You need to specify the application program!\n");
+  // Each frame is 16 bytes (ra + fp)
+  const int FRAME_SIZE = 16;
   
-  info.f = spike_file_open(arg_bug_msg.argv[0], O_RDONLY, 0);
-  info.p = current;
-  
-  if (elf_init(&elfloader, &info) != EL_OK)
-    panic("fail to init elfloader.\n");
-
-  // find the .symtab and .strtab sections
-  uint64 shoff = elfloader.ehdr.shoff;
-  uint16 shnum = elfloader.ehdr.shnum;
-  uint16 shstrndx = elfloader.ehdr.shstrndx;
-  
-  elf_sect_header shdr;
-  elf_sect_header symtab_shdr;
-  elf_sect_header strtab_shdr;
-  elf_sect_header shstrtab_shdr;
-  
-  // get section header string table
-  elf_fpread(&elfloader, &shstrtab_shdr, sizeof(shstrtab_shdr), shoff + shstrndx * sizeof(shdr));
-  
-  int symtab_found = 0;
-  int strtab_found = 0;
-
-  for (int k = 0; k < shnum; k++) {
-    elf_fpread(&elfloader, &shdr, sizeof(shdr), shoff + k * sizeof(shdr));
-    char name[32];
-    elf_fpread(&elfloader, name, 32, shstrtab_shdr.offset + shdr.name);
-    if (strcmp(name, ".symtab") == 0) {
-      symtab_shdr = shdr;
-      symtab_found = 1;
-    } else if (strcmp(name, ".strtab") == 0) {
-      strtab_shdr = shdr;
-      strtab_found = 1;
+  for (int i = 0; i < depth; i++) {
+    // Check if fp is valid
+    if (user_fp == 0 || user_fp < 0x81000000 || user_fp >= 0x82000000) {
+      break;
     }
+    
+    // Read return address from frame
+    uint64 ra = *(uint64*)(user_fp - 8);
+    
+    // Find function name from symbol table
+    const char* func_name = find_function_name(ra);
+    if (func_name) {
+      sprint("%s\n", func_name);
+    }
+    
+    // Move to previous frame
+    uint64 prev_fp = *(uint64*)(user_fp - 16);
+    if (prev_fp == user_fp || prev_fp == 0) {
+      break;
+    }
+    user_fp = prev_fp;
   }
-
-  if (!symtab_found || !strtab_found) {
-    panic("symtab or strtab not found\n");
-  }
-
-  sprint("back trace the user app in the following:\n");
-
-  while (i < depth && ra != 0) {
-    // find the symbol name of ra
-    // iterate over symbols
-    uint64 symtab_size = symtab_shdr.size;
-    uint64 symtab_offset = symtab_shdr.offset;
-    uint64 sym_entsize = symtab_shdr.entsize;
-    uint64 num_syms = symtab_size / sym_entsize;
-    
-    elf_sym sym;
-    int found = 0;
-    char name[256];
-
-    for (int k = 0; k < num_syms; k++) {
-      elf_fpread(&elfloader, &sym, sizeof(sym), symtab_offset + k * sym_entsize);
-      // check if ra is within the function
-      if (sym.value <= ra && ra < sym.value + sym.size) {
-        // found the symbol
-        // get the name
-        // read the name from strtab
-        elf_fpread(&elfloader, name, 256, strtab_shdr.offset + sym.name);
-        found = 1;
-        break;
-      }
-    }
-    
-    if (!found) {
-      // sprint("???\n");
-      break; // Stop if symbol not found
-    }
-
-    if (strcmp(name, "do_user_call") == 0 || strcmp(name, "print_backtrace") == 0) {
-        goto update_regs;
-    }
-
-    sprint("%s\n", name);
-    i++;
-
-    if (strcmp(name, "main") == 0) {
-         goto cleanup;
-    }
-
-update_regs:
-    // update ra and s0
-    // ra is at s0 - 8
-    // s0 is at s0 - 16
-    
-    // In lab1, we are in bare mode, so virtual address == physical address
-    // We can access user stack directly
-    
-    uint64 *stack_ptr = (uint64 *)s0;
-    // check if stack_ptr is valid?
-    // for now assume it is valid
-    
-    uint64 new_ra = *(stack_ptr - 1);
-    uint64 new_s0 = *(stack_ptr - 2);
-
-    // Stack grows down, so caller's frame pointer (new_s0) should be larger than current (s0)
-    if (new_s0 <= s0) break;
-
-    ra = new_ra;
-    s0 = new_s0;
-  }
-
-cleanup:
-  spike_file_close(info.f);
+  
   return 0;
 }
 

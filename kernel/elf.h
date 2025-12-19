@@ -25,30 +25,6 @@ typedef struct elf_header_t {
   uint16 shstrndx;  /* Section header string table index */
 } elf_header;
 
-// Section header.
-typedef struct elf_sect_header_t {
-  uint32 name;
-  uint32 type;
-  uint64 flags;
-  uint64 addr;
-  uint64 offset;
-  uint64 size;
-  uint32 link;
-  uint32 info;
-  uint64 addralign;
-  uint64 entsize;
-} elf_sect_header;
-
-// Symbol table entry.
-typedef struct elf_sym_t {
-  uint32 name;
-  uint8  info;
-  uint8  other;
-  uint16 shndx;
-  uint64 value;
-  uint64 size;
-} elf_sym;
-
 // Program segment header.
 typedef struct elf_prog_header_t {
   uint32 type;   /* Segment type */
@@ -63,6 +39,33 @@ typedef struct elf_prog_header_t {
 
 #define ELF_MAGIC 0x464C457FU  // "\x7FELF" in little endian
 #define ELF_PROG_LOAD 1
+
+// Section header
+typedef struct elf_section_header_t {
+  uint32 name;      /* Section name (string tbl index) */
+  uint32 type;      /* Section type */
+  uint64 flags;     /* Section flags */
+  uint64 addr;      /* Section virtual addr at execution */
+  uint64 offset;    /* Section file offset */
+  uint64 size;      /* Section size in bytes */
+  uint32 link;      /* Link to another section */
+  uint32 info;      /* Additional section information */
+  uint64 addralign; /* Section alignment */
+  uint64 entsize;   /* Entry size if section holds table */
+} elf_section_header;
+
+// Symbol table entry
+typedef struct elf_symbol_t {
+  uint32 name;      /* Symbol name (string tbl index) */
+  uint8 info;       /* Symbol type and binding */
+  uint8 other;      /* Symbol visibility */
+  uint16 shndx;     /* Section index */
+  uint64 value;     /* Symbol value */
+  uint64 size;      /* Symbol size */
+} elf_symbol;
+
+#define SHT_SYMTAB 2
+#define SHT_STRTAB 3
 
 typedef enum elf_status_t {
   EL_OK = 0,
@@ -83,7 +86,6 @@ elf_status elf_init(elf_ctx *ctx, void *info);
 elf_status elf_load(elf_ctx *ctx);
 
 void load_bincode_from_host_elf(process *p);
-
-uint64 elf_fpread(elf_ctx *ctx, void *dest, uint64 nb, uint64 offset);
+const char* find_function_name(uint64 addr);
 
 #endif
