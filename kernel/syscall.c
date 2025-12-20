@@ -36,34 +36,37 @@ ssize_t sys_user_exit(uint64 code) {
 // implement the SYS_user_print_backtrace syscall
 //
 ssize_t sys_user_print_backtrace(int depth) {
-  // Get user stack pointer from trapframe
-  uint64 user_sp = current->trapframe->regs.sp;
+  // When we enter the syscall, we're in do_user_call function
+  // The saved s0 points to do_user_call's frame
+  // do_user_call: 32-byte frame, s0=sp+32, prev_s0 at sp+24, so at (s0-8)
   uint64 user_fp = current->trapframe->regs.s0;
   
-  // Each frame is 16 bytes (ra + fp)
-  const int FRAME_SIZE = 16;
+  // Skip do_user_call frame: prev_s0 is at (s0-8) for 32-byte frame
+  uint64 caller_fp = *(uint64*)(user_fp - 8);
   
-  for (int i = 0; i < depth; i++) {
-    // Check if fp is valid
-    if (user_fp == 0 || user_fp < 0x81000000 || user_fp >= 0x82000000) {
+  uint64 fp = caller_fp;
+  for (int i = 0; i < depth && fp != 0; i++) {
+    // Check if fp is valid (user stack region)
+    if (fp < 0x81000000 || fp > 0x81100000) {
       break;
     }
     
-    // Read return address from frame
-    uint64 ra = *(uint64*)(user_fp - 8);
+    // Read return address from stack frame (16-byte frames: ra at s0-8)
+    uint64 ra = *(uint64*)(fp - 8);
     
-    // Find function name from symbol table
+    // Find and print function name
     const char* func_name = find_function_name(ra);
     if (func_name) {
       sprint("%s\n", func_name);
     }
     
-    // Move to previous frame
-    uint64 prev_fp = *(uint64*)(user_fp - 16);
-    if (prev_fp == user_fp || prev_fp == 0) {
+    // Move to previous frame (16-byte frames: prev_s0 at s0-16)
+    uint64 prev_fp = *(uint64*)(fp - 16);
+    if (prev_fp == 0 || prev_fp <= fp || prev_fp > 0x81100000) {
       break;
     }
-    user_fp = prev_fp;
+    
+    fp = prev_fp;
   }
   
   return 0;

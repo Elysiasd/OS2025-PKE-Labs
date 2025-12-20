@@ -3,6 +3,7 @@
 
 #include "util/types.h"
 #include "process.h"
+#include "spike_interface/spike_file.h"
 
 #define MAX_CMDLINE_ARGS 64
 
@@ -82,10 +83,16 @@ typedef struct elf_ctx_t {
   elf_header ehdr;
 } elf_ctx;
 
+typedef struct elf_info_t {
+  spike_file_t *f;
+  process *p;
+} elf_info;
+
 elf_status elf_init(elf_ctx *ctx, void *info);
 elf_status elf_load(elf_ctx *ctx);
 
 void load_bincode_from_host_elf(process *p);
+void load_elf_symbols(elf_info *info);
 const char* find_function_name(uint64 addr);
 
 #endif
