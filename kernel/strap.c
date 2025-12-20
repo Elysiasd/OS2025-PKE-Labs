@@ -53,26 +53,14 @@ void handle_user_page_fault(uint64 mcause, uint64 sepc, uint64 stval) {
   sprint("handle_page_fault: %lx\n", stval);
   switch (mcause) {
     case CAUSE_STORE_PAGE_FAULT:
-    case CAUSE_LOAD_PAGE_FAULT:
       // TODO (lab2_3): implement the operations that solve the page fault to
       // dynamically increase application stack.
       // hint: first allocate a new physical page, and then, maps the new page to the
       // virtual address that causes the page fault.
-      
-      // Allocate a new physical page
-      void* pa = alloc_page();
-      if (pa == NULL) {
-        panic("Failed to allocate physical page for stack expansion\n");
-      }
-      
-      // Calculate the virtual address of the page boundary
-      // stval is the faulting address, we need to map the page it belongs to
-      uint64 va = ROUNDDOWN(stval, PGSIZE);
-      
-      // Map the new physical page to the virtual address
-      // The stack needs read and write permissions
-      user_vm_map((pagetable_t)current->pagetable, va, PGSIZE, (uint64)pa,
-                  prot_to_type(PROT_WRITE | PROT_READ, 1));
+      stval = ROUNDDOWN(stval, PGSIZE);
+      if (map_pages((pagetable_t)current->pagetable, stval, PGSIZE, (uint64)alloc_page(), 
+                    prot_to_type(PROT_WRITE | PROT_READ, 1)) < 0)
+          return;
 
       break;
     default:
