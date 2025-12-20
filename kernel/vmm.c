@@ -159,8 +159,24 @@ void *user_va_to_pa(pagetable_t page_dir, void *va) {
   // (va & (1<<PGSHIFT -1)) means computing the offset of "va" inside its page.
   // Also, it is possible that "va" is not mapped at all. in such case, we can find
   // invalid PTE, and should return NULL.
-  panic( "You have to implement user_va_to_pa (convert user va to pa) to print messages in lab2_1.\n" );
-
+  
+  // Use page_walk to find the PTE for this virtual address
+  // alloc = 0 means don't allocate new pages if mapping doesn't exist
+  pte_t *pte = page_walk(page_dir, (uint64)va, 0);
+  
+  // Check if PTE was found and is valid
+  if (pte == 0 || (*pte & PTE_V) == 0) {
+    return NULL;
+  }
+  
+  // Extract physical page address from PTE
+  uint64 pa = PTE2PA(*pte);
+  
+  // Add the page offset from the virtual address
+  // (va & ((1 << PGSHIFT) - 1)) gets the lower 12 bits (offset within the page)
+  uint64 offset = (uint64)va & ((1 << PGSHIFT) - 1);
+  
+  return (void *)(pa + offset);
 }
 
 //
