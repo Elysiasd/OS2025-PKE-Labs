@@ -183,6 +183,33 @@ int do_fork( process* parent)
         memcpy( (void*)lookup_pa(child->pagetable, child->mapped_info[0].va),
           (void*)lookup_pa(parent->pagetable, parent->mapped_info[i].va), PGSIZE );
         break;
+      case DATA_SEGMENT:
+        // Copy data segment for parent-child independence. added @lab3_challenge1
+        {
+          // Allocate new pages for child's data segment
+          uint64 data_va = parent->mapped_info[i].va;
+          uint32 data_npages = parent->mapped_info[i].npages;
+          
+          for (uint32 j = 0; j < data_npages; j++) {
+            uint64 page_va = data_va + j * PGSIZE;
+            void* child_pa = alloc_page();
+            void* parent_pa = (void*)lookup_pa(parent->pagetable, page_va);
+            
+            // Copy data from parent to child
+            memcpy(child_pa, parent_pa, PGSIZE);
+            
+            // Map the page in child's page table
+            user_vm_map((pagetable_t)child->pagetable, page_va, PGSIZE, 
+                       (uint64)child_pa, prot_to_type(PROT_WRITE | PROT_READ, 1));
+          }
+          
+          // Register the data segment in child's mapped_info
+          child->mapped_info[child->total_mapped_region].va = data_va;
+          child->mapped_info[child->total_mapped_region].npages = data_npages;
+          child->mapped_info[child->total_mapped_region].seg_type = DATA_SEGMENT;
+          child->total_mapped_region++;
+        }
+        break;
       case CODE_SEGMENT:
         // TODO (lab3_1): implment the mapping of child code segment to parent's
         // code segment.
