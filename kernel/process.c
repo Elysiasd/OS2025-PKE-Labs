@@ -242,9 +242,6 @@ int do_fork( process* parent)
         // which matches the reference implementation.
         map_pages(child->pagetable, code_va, code_npages * PGSIZE, code_pa,
                   prot_to_type(PROT_READ | PROT_EXEC, 1));
-        
-        sprint("do_fork map code segment at pa:%lx of parent to child at va:%lx.\n", 
-               code_pa, code_va);
 
         // after mapping, register the vm region (do not delete codes below!)
         child->mapped_info[child->total_mapped_region].va = parent->mapped_info[i].va;
