@@ -247,8 +247,11 @@ int do_fork( process* parent)
           user_vm_map((pagetable_t)child->pagetable, va, PGSIZE, pa,
                       prot_to_type(PROT_READ | PROT_EXEC, 1));
           
-          sprint("do_fork map code segment at pa:%lx of parent to child at va:%lx.\n", 
-                 pa, va);
+          // Print mapping info for the first page only
+          if (page_offset == 0) {
+            sprint("do_fork map code segment at pa:%lx of parent to child at va:%lx.\n", 
+                   pa, va);
+          }
         }
 
         // after mapping, register the vm region (do not delete codes below!)
