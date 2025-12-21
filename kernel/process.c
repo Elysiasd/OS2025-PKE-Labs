@@ -205,8 +205,8 @@ int do_fork( process* parent)
         }
 
         // copy and map the heap blocks
-        for (uint64 heap_block = current->user_heap.heap_bottom;
-             heap_block < current->user_heap.heap_top; heap_block += PGSIZE) {
+        for (uint64 heap_block = parent->user_heap.heap_bottom;
+             heap_block < parent->user_heap.heap_top; heap_block += PGSIZE) {
           if (free_block_filter[(heap_block - heap_bottom) / PGSIZE])  // skip free blocks
             continue;
 
