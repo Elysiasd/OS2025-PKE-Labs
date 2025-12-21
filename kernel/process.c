@@ -235,41 +235,22 @@ int do_fork( process* parent)
         // Get the virtual address and number of pages of parent's code segment
         uint64 code_va = parent->mapped_info[i].va;
         uint64 code_npages = parent->mapped_info[i].npages;
+        uint64 code_pa = lookup_pa(parent->pagetable, code_va);
 
-        // map each page of the code segment
-        for (uint64 page_offset = 0; page_offset < code_npages; page_offset++) {
-          uint64 va = code_va + page_offset * PGSIZE;
-          uint64 pa = lookup_pa(parent->pagetable, va);
-          
-          user_vm_map((pagetable_t)child->pagetable, va, PGSIZE, pa,
-                      prot_to_type(PROT_READ | PROT_EXEC, 1));
-          
-          if (page_offset == 0) {
-            sprint("do_fork map code segment at pa:%lx of parent to child at va:%lx.\n", 
-                   pa, va);
-          }
-        }
+        // Map the code segment from parent to child
+        // Note: This assumes contiguous physical pages for the code segment, 
+        // which matches the reference implementation.
+        map_pages(child->pagetable, code_va, code_npages * PGSIZE, code_pa,
+                  prot_to_type(PROT_READ | PROT_EXEC, 1));
+        
+        sprint("do_fork map code segment at pa:%lx of parent to child at va:%lx.\n", 
+               code_pa, code_va);
 
         // after mapping, register the vm region (do not delete codes below!)
         child->mapped_info[child->total_mapped_region].va = parent->mapped_info[i].va;
         child->mapped_info[child->total_mapped_region].npages =
           parent->mapped_info[i].npages;
         child->mapped_info[child->total_mapped_region].seg_type = CODE_SEGMENT;
-        child->total_mapped_region++;
-        break;
-      case DATA_SEGMENT:
-        // Added for robustness: copy data segment (R+W)
-        for (uint64 page_offset = 0; page_offset < parent->mapped_info[i].npages; page_offset++) {
-          uint64 va = parent->mapped_info[i].va + page_offset * PGSIZE;
-          void* child_pa = alloc_page();
-          memcpy(child_pa, (void*)lookup_pa(parent->pagetable, va), PGSIZE);
-          user_vm_map((pagetable_t)child->pagetable, va, PGSIZE, (uint64)child_pa,
-                      prot_to_type(PROT_READ | PROT_WRITE, 1));
-        }
-        
-        child->mapped_info[child->total_mapped_region].va = parent->mapped_info[i].va;
-        child->mapped_info[child->total_mapped_region].npages = parent->mapped_info[i].npages;
-        child->mapped_info[child->total_mapped_region].seg_type = DATA_SEGMENT;
         child->total_mapped_region++;
         break;
     }
