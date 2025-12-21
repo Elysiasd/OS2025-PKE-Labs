@@ -232,23 +232,15 @@ int do_fork( process* parent)
         // segment of parent process.
         // DO NOT COPY THE PHYSICAL PAGES, JUST MAP THEM.
         
-        // Get the virtual address and number of pages of parent's code segment
-        uint64 code_va = parent->mapped_info[i].va;
-        uint64 code_npages = parent->mapped_info[i].npages;
-        
-        // Map each page of the code segment from parent to child
-        for (uint64 page_offset = 0; page_offset < code_npages; page_offset++) {
-          uint64 va = code_va + page_offset * PGSIZE;
-          // Get the physical address of this page in parent's address space
+        // map each page of the code segment
+        for (uint64 j = 0; j < parent->mapped_info[i].npages; j++) {
+          uint64 va = parent->mapped_info[i].va + j * PGSIZE;
           uint64 pa = lookup_pa(parent->pagetable, va);
           
-          // Map this physical page to the same virtual address in child's page table
-          // Code segments are typically read-only and executable
           user_vm_map((pagetable_t)child->pagetable, va, PGSIZE, pa,
                       prot_to_type(PROT_READ | PROT_EXEC, 1));
           
-          // Print mapping info for the first page only
-          if (page_offset == 0) {
+          if (j == 0) {
             sprint("do_fork map code segment at pa:%lx of parent to child at va:%lx.\n", 
                    pa, va);
           }
