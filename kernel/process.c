@@ -242,13 +242,13 @@ int do_fork( process* parent)
           // Get the physical address of this page in parent's address space
           uint64 pa = lookup_pa(parent->pagetable, va);
           
-          sprint("do_fork map code segment at pa:%lx of parent to child at va:%lx.\n", 
-                 pa, va);
-          
           // Map this physical page to the same virtual address in child's page table
           // Code segments are typically read-only and executable
           user_vm_map((pagetable_t)child->pagetable, va, PGSIZE, pa,
                       prot_to_type(PROT_READ | PROT_EXEC, 1));
+          
+          sprint("do_fork map code segment at pa:%lx of parent to child at va:%lx.\n", 
+                 pa, va);
         }
 
         // after mapping, register the vm region (do not delete codes below!)
