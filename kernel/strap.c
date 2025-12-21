@@ -78,19 +78,13 @@ void rrsched() {
   // hint: increase the tick_count member of current process by one, if it is bigger than
   // TIME_SLICE_LEN (means it has consumed its time slice), change its status into READY,
   // place it in the rear of ready queue, and finally schedule next process to run.
-  
-  // Increase the tick count for current process
   current->tick_count++;
-  
-  // Check if current process has used up its time slice
-  if (current->tick_count >= TIME_SLICE_LEN) {
-    // Reset tick count
-    current->tick_count = 0;
-    // Insert current process to ready queue (status will be set to READY automatically)
-    insert_to_ready_queue(current);
-    // Schedule next process
-    schedule();
+  if(current->tick_count >= TIME_SLICE_LEN){
+      current->tick_count = 0;
+      insert_to_ready_queue(current);
+      schedule();
   }
+
 }
 
 //
