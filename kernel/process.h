@@ -26,6 +26,11 @@ typedef struct process_t {
   pagetable_t pagetable;
   // trapframe storing the context of a (User mode) process.
   trapframe* trapframe;
+  
+  // virtual memory space boundaries for page fault validation
+  uint64 user_stack_top;     // top of user stack
+  uint64 mapped_info[10];    // records all mapped virtual memory regions
+  uint64 total_mapped_region;// number of mapped regions
 }process;
 
 // switch to run user app

@@ -53,15 +53,33 @@ void handle_user_page_fault(uint64 mcause, uint64 sepc, uint64 stval) {
   sprint("handle_page_fault: %lx\n", stval);
   switch (mcause) {
     case CAUSE_STORE_PAGE_FAULT:
-      // TODO (lab2_3): implement the operations that solve the page fault to
-      // dynamically increase application stack.
-      // hint: first allocate a new physical page, and then, maps the new page to the
-      // virtual address that causes the page fault.
-      stval = ROUNDDOWN(stval, PGSIZE);
-      if (map_pages((pagetable_t)current->pagetable, stval, PGSIZE, (uint64)alloc_page(), 
-                    prot_to_type(PROT_WRITE | PROT_READ, 1)) < 0)
+    case CAUSE_LOAD_PAGE_FAULT:
+      // Check if this is a valid stack expansion
+      // Stack grows downward from USER_STACK_TOP
+      if (stval < current->user_stack_top && stval >= current->user_stack_top - 10 * PGSIZE) {
+        // Valid stack expansion - allocate and map new page
+        stval = ROUNDDOWN(stval, PGSIZE);
+        if (map_pages((pagetable_t)current->pagetable, stval, PGSIZE, (uint64)alloc_page(), 
+                      prot_to_type(PROT_WRITE | PROT_READ, 1)) < 0)
+            return;
+      } else {
+        // Check if this address is in a known mapped heap region
+        int is_valid_heap = 0;
+        for (int i = 0; i < current->total_mapped_region; i++) {
+          uint64 heap_page = current->mapped_info[i];
+          if (stval >= heap_page && stval < heap_page + PGSIZE) {
+            is_valid_heap = 1;
+            break;
+          }
+        }
+        
+        if (!is_valid_heap) {
+          // Invalid address access - print error and exit
+          sprint("this address is not available!\n");
+          shutdown(-1);
           return;
-
+        }
+      }
       break;
     default:
       sprint("unknown page fault.\n");

@@ -45,6 +45,11 @@ uint64 sys_user_allocate_page() {
   g_ufree_page += PGSIZE;
   user_vm_map((pagetable_t)current->pagetable, va, PGSIZE, (uint64)pa,
          prot_to_type(PROT_WRITE | PROT_READ, 1));
+  
+  // record the mapped heap region
+  if (current->total_mapped_region < 10) {
+    current->mapped_info[current->total_mapped_region++] = va;
+  }
 
   return va;
 }
