@@ -172,7 +172,7 @@ int close(int fd) {
 // lib call to read present working directory (pwd)
 //
 int read_cwd(char *path) {
-  return do_user_call(SYS_user_rcwd, (uint64)path, 0, 0, 0, 0, 0, 0);
+  return do_user_call(SYS_user_rcwd, (uint64)path, MAX_PATH_LEN, 0, 0, 0, 0, 0);
 }
 
 //

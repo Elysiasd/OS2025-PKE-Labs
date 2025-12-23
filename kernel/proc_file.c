@@ -221,3 +221,64 @@ int do_link(char *oldpath, char *newpath) {
 int do_unlink(char *path) {
   return vfs_unlink(path);
 }
+
+//
+// get the current working directory of the current process.
+//
+int do_rcwd(char *path, size_t len) {
+  struct dentry *cwd = current->pfiles->cwd;
+  char buf[MAX_PATH_LEN];
+  int pos = MAX_PATH_LEN - 1;
+  buf[pos] = '\0';
+
+  if (cwd == vfs_root_dentry) {
+    if (len < 2) return -1;
+    strcpy(path, "/");
+    return 0;
+  }
+
+  struct dentry *d = cwd;
+  while (d != vfs_root_dentry) {
+    int name_len = strlen(d->name);
+    pos -= name_len;
+    if (pos <= 0) return -1; // Buffer too small
+    memcpy(buf + pos, d->name, name_len);
+    
+    pos--;
+    if (pos <= 0) return -1;
+    buf[pos] = '/';
+    
+    d = d->parent;
+  }
+  
+  if (len < MAX_PATH_LEN - pos) return -1;
+  strcpy(path, buf + pos);
+  return 0;
+}
+
+//
+// change the current working directory of the current process.
+//
+int do_ccwd(char *path) {
+  struct dentry *parent = vfs_root_dentry;
+  char miss_name[MAX_PATH_LEN];
+
+  // If path is relative, start from cwd
+  if (path[0] != '/') {
+    parent = current->pfiles->cwd;
+  }
+
+  struct dentry *d = lookup_final_dentry(path, &parent, miss_name);
+  if (!d) {
+    sprint("do_ccwd: path not found: %s\n", path);
+    return -1;
+  }
+
+  if (d->dentry_inode->type != R_DIR) {
+    sprint("do_ccwd: not a directory: %s\n", path);
+    return -1;
+  }
+
+  current->pfiles->cwd = d;
+  return 0;
+}
