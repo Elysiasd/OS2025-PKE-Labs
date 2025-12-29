@@ -66,5 +66,73 @@
         *   修改 `kernel/vfs.c` 中的 `lookup_final_dentry`，支持解析 `.` (当前目录) 和 `..` (父目录)。
         *   更新 VFS 接口，支持基于 `cwd` 的相对路径查找。
 
-## 3. 总结
+## 3. 实验过程记录与截图
+> 请在此处插入实验过程的截图，例如：
+> 1. 本地代码开发界面的截图。
+> 2. 调试过程的截图（如 GDB 调试或打印日志）。
+> 3. Docker 运行测试通过的截图。
+
+*(在此处粘贴截图)*
+
+## 4. Git 日志与截图
+> **要求**：必须包含带有作者名字、时间信息的 `git log` 命令输出截屏。作者邮箱必须与头歌注册邮箱一致。
+
+### 4.1 Git Log 文本输出
+```text
+* a9981d9 (HEAD -> lab4_challenge1_relativepath) Add OS2025LAB experiment report
+* 60cd3c1 完成 Lab4_Challenge1: 实现相对路径支持，包括 pwd、cd 命令及 . 和 .. 路径解析
+* dfdaaeb Merge lab4_3_hardlink into lab4_challenge1_relativepath
+* 2a560dd (lab4_3_hardlink) 完成 Lab4_3: 实现 rfs_link 硬链接功能
+* 1ffa47e Merge lab4_2_directory into lab4_3_hardlink
+```
+
+### 4.2 Git Log 截图
+> 请在此处插入 `git log` 的终端截图，确保包含 Author 和 Date 信息。
+
+*(在此处粘贴截图)*
+
+## 5. AI 辅助实验记录 (Lab 4 Challenge 1)
+> 本实验部分功能在 AI 辅助下完成。以下是交互过程记录、验证与分析。
+
+### 5.1 交互过程
+**1. 任务启动与代码分析**
+*   **Prompt**: "继续实现lab4-挑战1实验，并且列出修改完的仓库与原仓库有哪些文件变化"
+*   **AI 行为**:
+    *   分析了 `kernel/vfs.c`, `kernel/proc_file.c`, `kernel/syscall.h` 等文件。
+    *   确定了需要新增 `SYS_user_rcwd` (pwd) 和 `SYS_user_ccwd` (cd) 系统调用。
+    *   设计了在 `proc_file_management` 结构中维护 `cwd` (当前工作目录) 的方案。
+
+**2. 代码实现**
+*   **AI 修改**:
+    *   **`kernel/syscall.h`**: 注册了新的系统调用号。
+    *   **`kernel/proc_file.c`**: 实现了 `do_rcwd` (反向查找路径) 和 `do_ccwd` (切换目录)。
+    *   **`kernel/vfs.c`**: 修改 `lookup_final_dentry` 以支持 `.` 和 `..` 解析；修改 `vfs_open` 等函数以支持相对路径查找（若路径不以 `/` 开头，则从 `cwd` 开始）。
+    *   **`user/user_lib.c`**: 实现了用户态接口。
+
+**3. 编译与调试**
+*   **Prompt**: "用docker进行测试"
+*   **AI 行为**: 运行 Docker 容器进行编译和测试。
+*   **问题出现**: 编译报错 `kernel/proc_file.c:245:5: error: implicit declaration of function 'strncpy'`。
+*   **AI 分析**: 内核态缺少标准库支持，`strncpy` 未定义或未包含头文件。
+*   **AI 修复**: 将 `strncpy` 替换为 `memcpy`，并手动处理字符串结束符。
+*   **验证**: 再次运行 Docker 测试，所有测试用例（`pwd`, `cd`, 相对路径读写）均通过。
+
+### 5.2 验证与分析
+*   **验证结果**:
+    ```text
+    ======== Test 1: change current directory  ========
+    cwd:/
+    change current directory to ./RAMDISK0
+    cwd:/RAMDISK0
+    ...
+    All tests passed!
+    ```
+*   **观察与分析**:
+    *   AI 正确识别了相对路径实现的核心在于 VFS 层的路径解析逻辑 (`lookup_final_dentry`)。
+    *   在处理 `..` (父目录) 时，AI 利用了 `dentry->parent` 指针，这是文件系统树状结构的自然特性。
+    *   在内核态编程中，AI 能够意识到标准库的缺失（如 `strncpy` 问题）并给出替代方案 (`memcpy`)，体现了对内核环境的理解。
+    *   通过 Docker 环境的快速迭代，验证了代码的正确性。
+
+## 6. 总结
 通过一系列实验，成功构建了一个功能相对完善的 Proxy Kernel，涵盖了操作系统核心功能的实现。Git 日志清晰地反映了开发过程中的功能迭代、Bug 修复和代码优化过程。
+
