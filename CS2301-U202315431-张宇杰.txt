@@ -1,0 +1,177 @@
+
+
+
+
+
+
+操作系统原理课程实验报告
+
+
+姓    名：
+张宇杰
+学    院：
+计算机科学与技术学院
+专    业：
+计算机科学与技术
+班    级：
+CS2301
+学    号：
+U202315431
+指导教师：
+邵志远
+
+分数
+
+教师签名
+
+
+
+
+
+
+ 年  月  日
+目  录
+实验一 lab1_challenge1 打印用户程序调用栈	1
+1.1	实验目的	1
+1.2	实验内容	1
+1.3	实验调试及心得	2
+实验二 lab2_challenge1 复杂缺页异常	3
+2.1	实验目的	3
+2.2	实验内容	3
+2.3	实验调试及心得	4
+实验三?lab3_challenge1 进程等待和数据段复制	5
+3.1	实验目的	5
+3.2	实验内容	5
+3.3	实验调试及心得	7
+实验四?lab4_challenge1 相对路径	8
+4.1	实验目的	8
+4.2	实验内容	8
+4.3	实验调试及心得	10
+
+实验一 lab1_challenge1 打印用户程序调用栈
+
+1.1 实验目的
+　　在 PKE 内核中实现?print_backtrace?系统调用。通过在内核态解析用户栈帧（Stack Frame），回溯函数调用链。同时，通过读取 ELF 文件的符号表（Symbol Table），将函数地址转换为具体的函数名称，从而实现类似 GDB?backtrace?的功能。
+1.2 实验内容
+　　核心思路：?利用 RISC-V 的栈帧结构（fp?指向当前栈帧基址，fp-8?保存返回地址?ra，fp-16?保存上一个栈帧指针?prev_fp）进行回溯。
+　　使用 AI 模型辅助完成实验。
+Prompt 输入：?“实现 print_backtrace 系统调用，需要遍历用户栈帧打印函数调用链。请注意当前处于内核态，需要访问用户态内存。同时，为了显示函数名，需要解析 ELF 文件加载符号表。请提供 syscall.c, elf.c 等文件的修改代码。”
+　　代码修改点：
+图1.1：kernel/syscall.c的修改
+*  kernel/syscall.c: 实现了?sys_user_print_backtrace。
+* 获取当前栈帧指针?current->trapframe->regs.s0。
+* 关键逻辑：跳过第一层?do_user_call?的特殊栈帧（该函数由内联汇编调用，
+栈结构特殊），直接读取?*(user_fp - 8)?获取调用者的帧指针。
+* 循环遍历栈帧，验证?fp?地址合法性（0x81000000?-?0x81100000），并调用?find_function_name?打印符号名。
+图1.2 kernel/elf.c的修改
+* kernel/elf.c: 新增?load_elf_symbols?和?find_function_name。
+* 手动解析 ELF Section Headers，定位?.symtab（符号表）和?.strtab（字符串表）段，将其读入内存。
+* find_function_name?遍历符号表，查找地址落在?[value, value + size)?区间的?STT_FUNC?类型符号。
+1.3 实验调试及心得
+　　调试中发现，直接回溯会包含系统调用包装函数?do_user_call，导致输出多余信息。通过分析汇编代码，我发现?do_user_call?的栈帧布局与普通 C 函数略有不同，因此在代码中对其进行了特殊处理（Skip do_user_call frame），从而直接从用户程序的?main?或其他函数开始打印。
+
+【Git提交记录与运行结果】
+(在此处插入 Lab1 的 Git Log 和 Docker 运行截图/输出)
+
+
+
+实验二 lab2_challenge1 复杂缺页异常
+2.1 实验目的
+　　区分“合法的栈扩展”与“非法的内存访问”。当用户程序递归过深导致栈空间不足时，内核应自动分配物理页扩展栈空间（合法缺页）；而当程序访问越界数组或野指针时，内核应判定为非法访问并终止进程。
+2.2 实验内容
+　　核心思路：?在缺页异常处理函数中，检查缺页地址?stval?是否位于用户栈区域的合理延伸范围内。
+　　Prompt 输入：?“修改缺页异常处理逻辑?handle_user_page_fault。如果缺页地址在用户栈顶之下且接近栈指针（sp），则视为栈溢出，需要自动分配物理页；否则视为非法访问，终止进程。”
+　　代码修改点：
+　　图 2.1?strap.c
+* ?strap.c: 修改?handle_user_page_fault。
+o 增加了对 CAUSE_LOAD_PAGE_FAULT 的处理（原代码只处理了 Store）。
+o 栈扩展判断：if (stval < current->user_stack_top && stval >= current->user_stack_top - 10 * PGSIZE)。这里设定了一个 10 页的栈增长限制。
+o 如果满足条件，调用 alloc_page() 和 map_pages() 自动映射新页。
+o 如果不满足且不在堆区，则打印错误并 shutdown(-1)。
+2.3 实验调试及心得
+　　本实验的关键在于确定栈增长的阈值。如果阈值设置过大，可能掩盖真正的越界错误；设置过小，深度递归的程序会崩溃。我选择了 10 页作为限制，既能满足测试用例的递归需求，又能有效拦截恶意的非法访问。
+
+【Git提交记录与运行结果】
+(在此处插入 Lab2 的 Git Log 和 Docker 运行截图/输出)
+　　
+
+实验三?lab3_challenge1 进程等待和数据段复制
+
+3.1 实验目的
+　　实现父子进程同步（wait）及数据隔离。父进程通过?wait?阻塞自己直到子进程退出。同时，fork?时需要深拷贝数据段（Data Segment），确保父子进程修改全局变量互不影响。
+3.2 实验内容
+　　核心思路：?wait?系统调用通过检查子进程状态来决定是否阻塞；fork?时为子进程分配独立物理页并复制数据。
+　　Prompt 输入：?“实现 sys_user_wait，支持父进程阻塞。修改 do_fork，为子进程分配新的物理页并复制父进程的数据段内容，实现数据隔离。”
+　　代码修改点：
+　　图3.1 kernel/process.c
+* kernel/process.c (do_fork): 
+　　在遍历父进程内存映射时，对于?DATA_SEGMENT，不再是简单的映射同一个物理页，而是?alloc_page()?分配新页，并使用?memcpy?将父进程数据拷贝过去。
+图3.2 kernel/syscall.c
+* kernel/syscall.c ?(sys_user_wait): 
+　　sys_user_wait(pid)：遍历进程数组 procs。
+　　如果目标子进程状态不是 ZOMBIE，则设置 current->status = BLOCKED 并调用 schedule()。
+　　如果子进程已是 ZOMBIE，则回收资源（status = FREE）并返回。
+图3.3 kernel/syscall.c ?(sys_user_exit):
+* kernel/syscall.c ?(sys_user_exit): 
+　　修改了?exit?逻辑：当进程退出时，检查?current->parent?是否处于?BLOCKED?状态。如果是，则将其唤醒（insert_to_ready_queue）。
+
+
+3.3 实验调试及心得
+　　本实验的难点在于进程状态的流转。我最初实现?wait?时，忘记了在子进程退出（exit）时唤醒父进程，导致父进程一直处于?BLOCKED?状态无法结束。
+    心得：?进程同步是操作系统核心功能之一。wait?和?exit?是成对出现的生产者-消费者模型（子进程生产退出状态，父进程消费）。此外，数据段的深拷贝让我理解了进程“地址空间独立”的真正含义——虽然虚拟地址相同，但物理载体必须分离。
+
+【Git提交记录与运行结果】
+(在此处插入 Lab3 的 Git Log 和 Docker 运行截图/输出)
+　　
+
+ 
+
+实验四?lab4_challenge1 相对路径
+
+4.1 实验目的
+　　本实验旨在完善 PKE 文件系统的路径解析功能，使其支持相对路径操作。具体目标是实现两个系统调用：sys_user_rcwd（获取当前工作目录的绝对路径，类似?getcwd）和?sys_user_ccwd（改变当前工作目录，类似?chdir）。同时，确保文件系统在打开或查找文件时，能够根据路径的首字符（是否为?/）智能判断是基于根目录还是基于当前工作目录进行查找。
+4.2 实验内容
+　　?Prompt 输入：?“在进程的文件管理结构中维护当前工作目录（cwd）的 dentry 指针。实现?do_rcwd，通过不断回溯父目录节点（parent）来构建当前路径的绝对字符串。实现?do_ccwd，根据传入路径是否以?/?开头，决定从根目录还是当前?cwd?开始调用?lookup_final_dentry?进行查找，并更新进程的?cwd?指针。”
+　　代码修改点：
+　　图4.1 kernel/proc_file.h
+* kernel/proc_file.h?(及相关结构体定义):
+在进程的文件管理结构体?proc_file_management?中维护了?struct dentry *cwd?字段，用于指向当前进程工作目录的目录项节点，而非直接存储路径字符串。
+图4.2 kernel/proc_file.c
+* kernel/proc_file.c?- 实现?do_rcwd?(获取当前路径):
+实现了路径反向构建逻辑。
+o 逻辑：首先获取?current->pfiles->cwd。如果不是根目录，则进入循环，利用?dentry->parent?指针不断向上回溯直到?vfs_root_dentry。
+o 处理：在回溯过程中，将每一层目录的名称 (d->name) 逆序填充到缓冲区中，并在名称前添加?/?分隔符，最终生成绝对路径。
+* kernel/proc_file.c?- 实现?do_ccwd?(切换当前路径):
+实现了基于上下文的目录查找逻辑。
+o 逻辑：检查用户传入路径?path?的第一个字符。
+* 如果?path[0] == '/'，则将查找起点?parent?设为?vfs_root_dentry（绝对路径）。
+* 否则，将查找起点?parent?设为?current->pfiles->cwd（相对路径）。
+o 查找与更新：调用?lookup_final_dentry(path, &parent, ...)?进行解析。如果查找成功且目标是目录，则将?current->pfiles->cwd?更新为找到的?dentry。
+图4.3 kernel/vfs.c
+* kernel/vfs.c?(及相关查找逻辑):
+    利用现有的 VFS 查找机制，配合?do_ccwd?中确定的起始节点（根目录或当前目录），实现了对相对路径（如?cd sub_dir）和绝对路径的统一支持。
+　　
+　　
+4.3 实验调试及心得
+　　遇到的问题： 
+　　1. 路径构建逆序问题：在实现?do_rcwd?获取当前路径时，由于是通过?dentry?指针从当前节点向上回溯至根节点，获取到的目录名称顺序是反向的（例如先获取到?bar?再获取到?foo），直接拼接会导致路径字符串顺序错误。
+　　2. 相对路径解析思路误区：在实现?do_ccwd?支持相对路径时，最初受用户态编程习惯影响，考虑通过字符串拼接（当前绝对路径 + 相对路径）的方式来解析，但发现这种方式在内核中实现繁琐且效率低下。
+　　解决方案： 
+　　1. 倒序填充策略：针对?do_rcwd，我采用了一个临时缓冲区，并使用“从后向前填充”的算法。将指针初始化指向缓冲区末尾，每次回溯父节点时，将当前目录名写入缓冲区前部并移动指针。同时，增加了对根目录的特判，若?cwd?即为根节点直接返回?/，确保了逻辑的完备性。
+　　2. 利用 VFS 结构特性：针对?do_ccwd，我放弃了字符串拼接方案，转而利用 PKE VFS 的树状结构特性。通过判断路径首字符是否为?/，动态调整?lookup_final_dentry?函数的“查找起点”参数（parent）：绝对路径从根节点开始查，相对路径从?current->pfiles->cwd?开始查。
+　　
+
+【Git提交记录与运行结果】
+(在此处插入 Lab4 的 Git Log 和 Docker 运行截图/输出)
+　　心得：?这次实验让我深刻理解了操作系统内核中 VFS（虚拟文件系统）的设计哲学。与传统的字符串处理不同，内核文件操作高度依赖于内存中的 dentry 树结构。通过改变查找起点而非拼接字符串来解决相对路径问题，不仅代码逻辑更加简洁高效，也避免了不必要的内存拷贝。这种设计
+　　
+　　让我认识到，在内核开发中，充分利用现有的数据结构往往比编写复杂的逻辑代码更为重要。
+
+
+
+
+
+
+1
+
+
