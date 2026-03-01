@@ -63,14 +63,13 @@ SPIKE_INF_LIB   := $(OBJ_DIR)/spike_interface.a
 
 
 #---------------------	user   -----------------------
-USER_CPPS 		:= user/*.c 
+USER_TARGET 	:= $(OBJ_DIR)/app_singlepageheap2
+# Derive the app C file from USER_TARGET name (e.g. obj/app_foo -> user/app_foo.c)
+USER_APP_NAME	:= $(notdir $(USER_TARGET))
+USER_CPPS 		:= user/$(USER_APP_NAME).c user/user_lib.c
 
 USER_CPPS  		:= $(wildcard $(USER_CPPS))
 USER_OBJS  		:= $(addprefix $(OBJ_DIR)/, $(patsubst %.c,%.o,$(USER_CPPS)))
-
-
-
-USER_TARGET 	:= $(OBJ_DIR)/app_singlepageheap
 #------------------------targets------------------------
 $(OBJ_DIR):
 	@-mkdir -p $(OBJ_DIR)	
