@@ -5,6 +5,7 @@
 #include "util/string.h"
 #include "memlayout.h"
 #include "spike_interface/spike_utils.h"
+#include "sync_utils.h"
 
 // _end is defined in kernel/kernel.lds, it marks the ending (virtual) address of PKE kernel
 extern char _end[];
@@ -19,6 +20,9 @@ int vm_alloc_stage[NCPU] = { 0 }; // 0 for kernel alloc, 1 for user alloc
 typedef struct node {
   struct node *next;
 } list_node;
+
+// spinlock protecting the physical memory free list. added @lab2_challenge3
+static spinlock_t pmm_lock = SPINLOCK_INIT;
 
 // g_free_mem_list is the head of the list of free physical memory pages
 static list_node g_free_mem_list;
@@ -40,10 +44,13 @@ void free_page(void *pa) {
   if (((uint64)pa % PGSIZE) != 0 || (uint64)pa < free_mem_start_addr || (uint64)pa >= free_mem_end_addr)
     panic("free_page 0x%lx \n", pa);
 
+  // protect g_free_mem_list from concurrent access. added @lab2_challenge3
+  spinlock_lock(&pmm_lock);
   // insert a physical page to g_free_mem_list
   list_node *n = (list_node *)pa;
   n->next = g_free_mem_list.next;
   g_free_mem_list.next = n;
+  spinlock_unlock(&pmm_lock);
 }
 
 //
@@ -51,12 +58,18 @@ void free_page(void *pa) {
 // Allocates only ONE page!
 //
 void *alloc_page(void) {
+  // protect g_free_mem_list from concurrent access. added @lab2_challenge3
+  spinlock_lock(&pmm_lock);
+
   list_node *n = g_free_mem_list.next;
-  uint64 hartid = 0;
+  // read real hartid from tp register instead of hardcoding 0. added @lab2_challenge3
+  uint64 hartid = r_tp();
   if (vm_alloc_stage[hartid]) {
     sprint("hartid = %ld: alloc page 0x%x\n", hartid, n);
   }
   if (n) g_free_mem_list.next = n->next;
+
+  spinlock_unlock(&pmm_lock);
   return (void *)n;
 }
 

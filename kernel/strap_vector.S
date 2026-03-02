@@ -42,6 +42,9 @@ smode_trap_vector:
     csrw satp, t1
     sfence.vma zero, zero
 
+    # restore hartid into tp from p->trapframe->kernel_hartid. added @lab2_challenge3
+    ld tp, 280(a0)
+
     # jump to smode_trap_handler() that is defined in kernel/trap.c
     jr t0
 

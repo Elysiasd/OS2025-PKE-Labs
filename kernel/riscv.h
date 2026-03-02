@@ -223,4 +223,11 @@ static inline void flush_tlb(void) { asm volatile("sfence.vma zero, zero"); }
 typedef uint64 pte_t;
 typedef uint64 *pagetable_t;  // 512 PTEs
 
+// read hartid from tp register (saved in mentry.S). added @lab2_challenge3
+static inline uint64 r_tp() {
+  uint64 x;
+  asm volatile("mv %0, tp" : "=r"(x));
+  return x;
+}
+
 #endif
